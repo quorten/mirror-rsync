@@ -5,6 +5,7 @@ set -euo pipefail;
 #Saves the overhead of downloading each file over HTTP and considerably simpler to debug. Can now be configured using a file containing paths instead of running rsync many times in a loop.
 #Just like apt-mirror, capable of running on only one Ubuntu release to save space.
 #Author: Rob Johnson
+#Contributors: sanbrother, Andrew Makousky
 #Date: 2017-09-20
 
 syncDate=$(date +%F);
