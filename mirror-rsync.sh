@@ -13,6 +13,11 @@ syncDate=$(date +%F);
 #Adapt as necessary to your package mirror setup
 sourceFolder='/etc/mirror-rsync.d';
 baseDirectory="/srv/apt";
+doDeletes=1;
+
+if [[ "$doDeletes" -gt 0 ]]; then
+	rsyncDeleteArgs='--delete-during';
+fi
 
 #Basic checks
 if [[ ! -d "$sourceFolder" ]]; then
@@ -79,7 +84,7 @@ do
 	localPackageStore="$baseDirectory/$masterSource/$name";
 	mkdir -p "$localPackageStore/dists"
 
-	echo -n ${releases[*]} | sed 's/ /\n/g' | rsync --no-motd --delete-during --archive --recursive --human-readable --files-from=- $masterSource::"$name/dists/" "$localPackageStore/dists/";
+	echo -n ${releases[*]} | sed 's/ /\n/g' | rsync --no-motd $rsyncDeleteArgs --archive --recursive --human-readable --files-from=- $masterSource::"$name/dists/" "$localPackageStore/dists/";
 
 	echo "$(date +%T) Generating package list";
 	#rather than hard-coding, use a config file to run the loop. The same config file as used above to sync the releases
@@ -152,7 +157,7 @@ do
 	while [[ $exitCode -gt 0 ]] && [[ $attempt -lt 4 ]];
 	do
 		SECONDS=0;
-		rsync --copy-links --files-from="/tmp/$filename" --no-motd --delete-during --archive --recursive --human-readable $masterSource::$name "$localPackageStore/" 2>&1;
+		rsync --copy-links --files-from="/tmp/$filename" --no-motd $rsyncDeleteArgs --archive --recursive --human-readable $masterSource::$name "$localPackageStore/" 2>&1;
 		exitCode=$?;
 		if [[ $exitCode -gt 0 ]]; then
 			waitTime=$((attempt*300)); #increasing wait time - 5, 10 and 15 minutes between attempts
@@ -172,10 +177,12 @@ do
 
 	echo "$(date +%T) Sync from $masterSource complete, runtime: $SECONDS s";
 
-	echo "$(date +%T) Deleting obsolete packages";
+	if [[ "$doDeletes" -gt 0 ]]; then
+		echo "$(date +%T) Deleting obsolete packages";
 
-	#Build a list of files that have been synced and delete any that are not in the list
-	find "$localPackageStore/pool/" -type f | { grep -Fvf "/tmp/$filename" || true; } | xargs --no-run-if-empty -I {} rm -v {}; # '|| true' used here to prevent grep causing pipefail if there are no packages to delete - grep normally returns 1 if no files are found
+		#Build a list of files that have been synced and delete any that are not in the list
+		find "$localPackageStore/pool/" -type f | { grep -Fvf "/tmp/$filename" || true; } | xargs --no-run-if-empty -I {} rm -v {}; # '|| true' used here to prevent grep causing pipefail if there are no packages to delete - grep normally returns 1 if no files are found
+	fi
 
 	echo "$(date +%T) Completed $masterSource";
 
