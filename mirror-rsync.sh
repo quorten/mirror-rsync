@@ -14,9 +14,10 @@ syncDate=$(date +%F);
 sourceFolder='/etc/mirror-rsync.d';
 baseDirectory="/srv/apt";
 doDeletes=1;
+rsyncCommonArgs="--archive --recursive --human-readable";
 
 if [[ "$doDeletes" -gt 0 ]]; then
-	rsyncDeleteArgs='--delete-during';
+	rsyncCommonArgs="--delete-during $rsyncCommonArgs";
 fi
 
 #Basic checks
@@ -84,7 +85,7 @@ do
 	localPackageStore="$baseDirectory/$masterSource/$name";
 	mkdir -p "$localPackageStore/dists"
 
-	echo -n ${releases[*]} | sed 's/ /\n/g' | rsync --no-motd $rsyncDeleteArgs --archive --recursive --human-readable --files-from=- $masterSource::"$name/dists/" "$localPackageStore/dists/";
+	echo -n ${releases[*]} | sed 's/ /\n/g' | rsync $rsyncCommonArgs --files-from=- $masterSource::"$name/dists/" "$localPackageStore/dists/";
 
 	echo "$(date +%T) Generating package list";
 	#rather than hard-coding, use a config file to run the loop. The same config file as used above to sync the releases
@@ -157,7 +158,7 @@ do
 	while [[ $exitCode -gt 0 ]] && [[ $attempt -lt 4 ]];
 	do
 		SECONDS=0;
-		rsync --copy-links --files-from="/tmp/$filename" --no-motd $rsyncDeleteArgs --archive --recursive --human-readable $masterSource::$name "$localPackageStore/" 2>&1;
+		rsync --copy-links $rsyncCommonArgs --files-from="/tmp/$filename" $masterSource::$name "$localPackageStore/" 2>&1;
 		exitCode=$?;
 		if [[ $exitCode -gt 0 ]]; then
 			waitTime=$((attempt*300)); #increasing wait time - 5, 10 and 15 minutes between attempts
