@@ -15,6 +15,12 @@ sourceFolder='/etc/mirror-rsync.d';
 baseDirectory="/srv/apt";
 doDeletes=1;
 rsyncCommonArgs="--archive --recursive --human-readable";
+keepLogs=0;
+#If zero, skip rsync of dists/ files.
+rsyncDists=1;
+#If nonzero, only generate a list of pool files to rsync.  Do not actually
+#rsync them.
+genListOnly=0;
 
 if [[ "$doDeletes" -gt 0 ]]; then
 	rsyncCommonArgs="--delete-during $rsyncCommonArgs";
@@ -73,8 +79,12 @@ do
 	masterSource=$(basename "$sourceServer");
 	#File to build a list of files to rsync from the remote mirror - will contain one line for every file in the dists/ to sync
 	filename="packages-$masterSource-$syncDate.txt";
+	distsFilename="dists-$masterSource-$syncDate.txt";
+	poolFilename="pool-$masterSource-$syncDate.txt";
 
 	echo "$syncDate $(date +%T) Starting, exporting to /tmp/$filename";
+	echo "$syncDate $(date +%T) Logging to /tmp/$distsFilename";
+	echo "$syncDate $(date +%T) Logging to /tmp/$poolFilename";
 
 	#In case leftover from testing or failed previous run
 	if [[ -f "/tmp/$filename" ]]; then
@@ -85,7 +95,11 @@ do
 	localPackageStore="$baseDirectory/$masterSource/$name";
 	mkdir -p "$localPackageStore/dists"
 
-	echo -n ${releases[*]} | sed 's/ /\n/g' | rsync $rsyncCommonArgs --files-from=- $masterSource::"$name/dists/" "$localPackageStore/dists/";
+	if [[ "$rsyncDists" -gt 0 ]]; then
+		echo -n ${releases[*]} | sed 's/ /\n/g' | rsync $rsyncCommonArgs --files-from=- $masterSource::"$name/dists/" "$localPackageStore/dists/" 2>&1 | tee "/tmp/$distsFilename";
+		#Fail if the first command in the pipe failed
+		[[ ${PIPESTATUS[0]} -eq 0 ]];
+	fi
 
 	echo "$(date +%T) Generating package list";
 	#rather than hard-coding, use a config file to run the loop. The same config file as used above to sync the releases
@@ -145,8 +159,13 @@ do
 	sort --unique "/tmp/$filename" > "/tmp/$filename.sorted";
 	rm -v "/tmp/$filename";
 	mv -v "/tmp/$filename.sorted" "/tmp/$filename";
+	numFiles=$(wc -l /tmp/$filename | awk '{print $1}');
 
-	echo "$(wc -l /tmp/$filename | awk '{print $1}') files to be sync'd";
+	echo "$numFiles files to be sync'd";
+
+	if [[ "$genListOnly" -gt 0 ]]; then
+		exit 0;
+	fi
 
 	echo "$(date +%T) Running rsync";
 
@@ -158,8 +177,8 @@ do
 	while [[ $exitCode -gt 0 ]] && [[ $attempt -lt 4 ]];
 	do
 		SECONDS=0;
-		rsync --copy-links $rsyncCommonArgs --files-from="/tmp/$filename" $masterSource::$name "$localPackageStore/" 2>&1;
-		exitCode=$?;
+		rsync --copy-links $rsyncCommonArgs --files-from="/tmp/$filename" $masterSource::$name "$localPackageStore/" 2>&1 | tee -a "/tmp/$poolFilename";
+		exitCode=${PIPESTATUS[0]};
 		if [[ $exitCode -gt 0 ]]; then
 			waitTime=$((attempt*300)); #increasing wait time - 5, 10 and 15 minutes between attempts
 			echo "$(date +%T) rsync attempt $attempt failed with exit code $exitCode, waiting $waitTime seconds to retry" 1>&2;
@@ -187,7 +206,13 @@ do
 
 	echo "$(date +%T) Completed $masterSource";
 
-	rm -v "/tmp/$filename";
+	if [[ "$keepLogs" -le 0 ]]; then
+		echo "$(date +%T) Deleting logs";
+
+		rm -v "/tmp/$filename";
+		rm -v "/tmp/$distsFilename";
+		rm -v "/tmp/$poolFilename";
+	fi
 done
 touch "$baseDirectory/lastSuccess";
 
