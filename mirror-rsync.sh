@@ -88,12 +88,12 @@ do
 						echo "$(date +%T) Error: uncompressed package list not found in remote repo and decompression tools for .gz or .xz files not found on this system, aborting. Please install either gunzip or xzcat to use this script." 1>&2;
 						exit 1;
 					fi
-					echo "$(date +%T) Extracting packages from $release $repo $arch";
-					if [[ -s "$localPackageStore/dists/$release/$repo/binary-$arch/Packages" ]]; then #Have experienced zero filesizes for certain repos
-						awk '/^Filename: / { print $2; }' "$localPackageStore/dists/$release/$repo/binary-$arch/Packages" >> "/tmp/$filename";
-					else
-						echo "$(date +%T) Package list is empty, skipping";
-					fi
+				fi
+				echo "$(date +%T) Extracting packages from $release $repo $arch";
+				if [[ -s "$localPackageStore/dists/$release/$repo/binary-$arch/Packages" ]]; then #Have experienced zero filesizes for certain repos
+					awk '/^Filename: / { print $2; }' "$localPackageStore/dists/$release/$repo/binary-$arch/Packages" >> "/tmp/$filename";
+				else
+					echo "$(date +%T) Package list is empty, skipping";
 				fi
 			done
 		done
