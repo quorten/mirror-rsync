@@ -51,7 +51,7 @@ get_source_files ()
 	while read LINE; do
 		if [[ "$LINE" = Directory:\ * ]]; then
 			DIR=${LINE#Directory: };
-		elif [[ "$LINE" = "Files:" ]]; then
+		elif [[ "$LINE" = Files:\ * ]]; then
 			FMODE=1;
 		elif [[ "$FMODE" = "1" ]]; then
 			if [[ "$LINE" = \ * ]]; then
